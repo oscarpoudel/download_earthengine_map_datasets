@@ -3,10 +3,13 @@ bhaktapur = ee.FeatureCollection("users/oscarPoudel/bhaktapur");
 kathmandu = ee.FeatureCollection("users/oscarPoudel/kathmandu");
 lalitpur = ee.FeatureCollection("users/oscarPoudel/lalitpur");
 
-//Enter start data here
-var start = new Date("05/10/2007");
+var bhkmerged= bhaktapur
+var bhkmerged=bhkmerged.merge(kathmandu);
+var bhkmerged=bhkmerged.merge(lalitpur);
+//Enter start data here (must be same format)
+var start = "04/10/2007";
 //Enter end month for map bracket here
-var end = new Date("06/15/2007");
+var end = "06/25/2007";
 //Enter end year here
 var upto_year = 2015;
 //Enter the image database landsat8:"LANDSAT/LC08/C02/T1_L2" 
@@ -20,16 +23,18 @@ var dset = "_L7";
 //Enter properties to filter 
 //cloudcovers(Landsat7:'CLOUD_COVER_LAND',Sentinal2:'CLOUDY_SHADOW_PERCENTAGE')
 //Examples : https://developers.google.com/earth-engine/datasets/catalog/LANDSAT_LE07_C02_T1_L2#image-properties
-var prop = 'CLOUD_COVER_LAND'
+var prop = 'CLOUD_COVER'
 
 //__________________________________________________________________________\\
 var start_years = []
 var end_years = []
 var st_month = []
 var end_month = []
-for (var i = start.getFullYear();i<upto_year;i++){
-    start_years.push("05/10/"+i)
-    end_years.push("06/15/"+i)
+var st_yr =new Date(start)
+
+for (var i =st_yr.getFullYear();i<upto_year;i++){
+    start_years.push(start.substring(0,6)+i)
+    end_years.push(end.substring(0,6)+i)
 }
 function getFormattedDate(date1) {
     var year = date1.getFullYear();
@@ -48,33 +53,44 @@ for (var j =0;j<start_years.length;j++){
 for(i=0;i<end_month.length;i++){
     console.log("start month:"+st_month[i])
     console.log("End month:"+end_month[i])
-    var dataset = ee.ImageCollection(img_dat).filterDate(st_month[i], end_month[i])
-    .filter(ee.Filter.lt(prop, 20));
+    var dataset = ee.ImageCollection(img_dat)
+    .filterBounds(bhkmerged)
+    .filterDate(st_month[i], end_month[i])
+    .filter(ee.Filter.lt(prop, 30))
+    ;
+    
     dataset = dataset.map(applyScaleFactors);
+    var mosc = dataset.mosaic();
     var landsatb = dataset.median().clip(bhaktapur);
     var landsatl = dataset.median().clip(lalitpur);
     var landsatk = dataset.median().clip(kathmandu);
-  
-  Export.image.toDrive({
-  image: landsatb,
+  var img_fill1 = landsatb.focal_mean(1, 'square', 'pixels', 8);
+  var img_fill2 = landsatl.focal_mean(1, 'square', 'pixels', 8);
+  var img_fill3 = landsatk.focal_mean(1, 'square', 'pixels', 8);
+ Export.image.toDrive({
+  image: img_fill1.blend(landsatb).clip(bhaktapur),
   description:i+dset+"_Bhaktapur_"+st_month[i].replace(/[&\/\\]/g, ''),
   scale:30,
-  region:bhaktapur
+  region:bhaktapur,
+  folder:'gis',
 })
  Export.image.toDrive({
-  image: landsatk,
+  image: img_fill2.blend(landsatk).clip(kathmandu),
   description:i+dset+"_Kathmandu_"+st_month[i].replace(/[&\/\\]/g, ''),
   scale:30,
-  region:kathmandu
+  region:kathmandu,
+  folder:'gis',
 })
  Export.image.toDrive({
-  image: landsatl,
+  image: img_fill3.blend(landsatl).clip(lalitpur),
   description:i+dset+"_lalitpur_"+st_month[i].replace(/[&\/\\]/g, ''),
   scale:30,
-  region:bhaktapur
+  region:lalitpur,
+  folder:'gis',
 })
 console.log("_______Date__"+st_month[i]+" done !!!________")
 }
+
 // Applies scaling factors.
 function applyScaleFactors(image) {
   var opticalBands = image.select('SR_B.').multiply(0.0000275).add(-0.2);
@@ -82,24 +98,26 @@ function applyScaleFactors(image) {
   return image.addBands(opticalBands, null, true)
               .addBands(thermalBands, null, true);
 }
-/*
-var dataset = ee.ImageCollection(img_dat).filterDate('2014-5-10', '2014-6-15')
-    .filter(ee.Filter.lt(prop, 20));
-    dataset = dataset.map(applyScaleFactors);
-    var landsatb = dataset.median().clip(bhaktapur);
-    var landsatl = dataset.median().clip(lalitpur);
-    var landsatk = dataset.median().clip(kathmandu);*/
+
+var dataset2 = ee.ImageCollection(img_dat)
+    .filterDate('2007-4-10', '2007-6-25')
+    .filter(ee.Filter.lt(prop, 30))
+    .filterBounds(bhkmerged);
+    dataset2 = dataset2.map(applyScaleFactors);
+    var landsatbhktpur = dataset2.median().clip(bhkmerged);
+    var landfinal=landsatbhktpur.focal_mean(1.5, 'square', 'pixels', 8);
+    var landfinal2=landfinal.blend(landsatbhktpur).clip(bhkmerged);
+    //var landfinal = landsatbhktpur.blend(dataset2).clip(bhaktapur)
+    //var landsatl = dataset.median().clip(lalitpur);
+    //var landsatk = dataset.median().clip(kathmandu);
     
-Map.setCenter(85.3287, 27.7259,10);
 
 var visualization = {
   bands: ['SR_B5', 'SR_B4', 'SR_B3'],
-  min: 0.0,
+  min: 0,
   max: 0.3,
 };
-/*
-Map.addLayer(landsatb, visualization, 'bhaktapur (432)');
-Map.addLayer(landsatl, visualization, 'lalitpur (432)');
-Map.addLayer(landsatk, visualization, 'kathmandu (432)');
-
-*/
+Map.setCenter(85.3287, 27.7259,12);
+Map.addLayer(landfinal2, visualization, 'bhaktapur (432)');
+//Map.addLayer(landsatl, visualization, 'lalitpur (432)');
+//Map.addLayer(landsatk, visualization, 'kathmandu (432)');

@@ -1,5 +1,5 @@
 # Earthengine Script to download Required datasets from Earthengine
 
-*the script consits of section where you can edit the start date and end date of data 
-*You can add filter properties 
-*The script will iterarively save the earthengine data to google drive
+Markup : * the script consists of section where you can edit the start date and end date of data
+         * You can add filter properties
+         * The script will iterarively save the earthengine data to google drive
